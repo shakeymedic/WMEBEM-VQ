@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V/Q Matching & Mismatching Animation</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #e0e7ff;
+            --success: #16a34a;
+            --success-light: #dcfce7;
+            --warning: #ca8a04;
+            --warning-light: #fef9c3;
+            --danger: #dc2626;
+            --danger-light: #fee2e2;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-800: #1f2937;
+            --gray-600: #4b5563;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f9fafb;
+            color: var(--gray-800);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        @media (min-width: 640px) {
+            header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        /* View Toggles */
+        .view-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--gray-200);
+            background: white;
+            color: var(--gray-600);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background-color: var(--gray-100);
+        }
+
+        .btn.active {
+            background-color: var(--primary-light);
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Main Content */
+        main {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        /* Scenario Buttons */
+        .scenario-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .btn-scenario.normal.active { background-color: var(--success); color: white; border-color: var(--success); }
+        .btn-scenario.shunt.active { background-color: #2563eb; color: white; border-color: #2563eb; }
+        .btn-scenario.deadspace.active { background-color: var(--danger); color: white; border-color: var(--danger); }
+
+        /* Canvas Area */
+        .canvas-wrapper {
+            width: 100%;
+            max-width: 450px;
+            aspect-ratio: 1 / 1;
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid var(--gray-200);
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            width: 100%;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .info-panel.normal { background-color: var(--success-light); border-left-color: var(--success); }
+        .info-panel.shunt { background-color: #dbeafe; border-left-color: #2563eb; }
+        .info-panel.deadspace { background-color: var(--danger-light); border-left-color: var(--danger); }
+        
+        .info-panel h2 { font-size: 1.125rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .info-tag { font-size: 0.75rem; background: white; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); font-weight: normal; }
+        .info-panel p { font-size: 0.9rem; line-height: 1.5; color: var(--gray-800); }
+
+        /* Lung View Specifics */
+        .lung-layout {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .lung-layout {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+            .lung-visual { width: 50%; }
+            .lung-info { width: 50%; }
+        }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        
+        /* Animation elements */
+        .particle { transition: opacity 0.2s; }
+        .bar-fill { transition: width 1s ease-in-out, opacity 0.5s; }
+
+        .legend {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            border: 1px solid var(--gray-200);
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>V/Q Mismatch Explorer</h1>
+            <p class="subtitle">Visualizing Alveolar Mechanics & West Zones</p>
+        </div>
+        <div class="view-controls">
+            <button class="btn active" id="btn-view-alveolar" onclick="switchView('alveolar')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                Alveolar View
+            </button>
+            <button class="btn" id="btn-view-lung" onclick="switchView('lung')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+                Whole Lung View
+            </button>
+        </div>
+    </header>
+
+    <main id="view-alveolar">
+        <div class="scenario-controls">
+            <button class="btn btn-scenario normal active" onclick="setScenario('normal')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                Normal Match
+            </button>
+            <button class="btn btn-scenario shunt" onclick="setScenario('shunt')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                Shunt (Low V/Q)
+            </button>
+            <button class="btn btn-scenario deadspace" onclick="setScenario('deadspace')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
+                Dead Space (High V/Q)
+            </button>
+        </div>
+
+        <div class="canvas-wrapper">
+            <svg viewBox="0 0 400 450" id="alveolar-svg">
+                <defs>
+                    <linearGradient id="capillaryGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#2e1065" />
+                        <stop offset="40%" stop-color="#4c1d95" />
+                        <stop id="grad-mid" offset="60%" stop-color="#dc2626" />
+                        <stop id="grad-end" offset="100%" stop-color="#ef4444" />
+                    </linearGradient>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                        <path d="M0,0 L0,10 L10,5 z" fill="#94a3b8" />
+                    </marker>
+                </defs>
+
+                <!-- Dynamic Group for Breathing -->
+                <g id="breath-group">
+                    <!-- Bronchiole -->
+                    <path d="M170,0 L170,100 Q170,120 150,140" fill="none" stroke="#e2e8f0" stroke-width="25" stroke-linecap="round"/>
+                    <path d="M230,0 L230,100 Q230,120 250,140" fill="none" stroke="#e2e8f0" stroke-width="25" stroke-linecap="round"/>
+                    <!-- Alveolus -->
+                    <circle id="alveolus-sac" cx="200" cy="200" r="80" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="3" />
+                    <path d="M160,130 Q200,160 240,130" fill="none" stroke="#cbd5e1" stroke-width="3" />
+                    
+                    <!-- Air Particles Container -->
+                    <g id="air-particles"></g>
+                    <text id="o2-label" x="185" y="210" font-size="14" fill="#3b82f6" font-weight="bold" opacity="0.5">O₂</text>
+
+                    <!-- Shunt Blockage -->
+                    <g id="shunt-blockage" class="hidden">
+                        <path d="M175,90 Q200,120 225,90 Q210,70 190,80 Q180,75 175,90" fill="#84cc16" stroke="#4d7c0f" stroke-width="2" opacity="0.9"/>
+                        <text x="240" y="80" font-size="12" fill="#4d7c0f" font-weight="bold">Mucus</text>
+                        <line x1="235" y1="82" x2="210" y2="90" stroke="#4d7c0f" stroke-width="1" />
+                    </g>
+                </g>
+
+                <!-- Capillary Back -->
+                <path d="M20,320 Q200,450 380,320" fill="none" stroke="url(#capillaryGradient)" stroke-width="34" opacity="0.2"/>
+                <path d="M20,320 Q200,450 380,320" fill="none" stroke="#cbd5e1" stroke-width="36" stroke-dasharray="5,5" opacity="0.5"/>
+
+                <!-- Deadspace Embolus -->
+                <g id="deadspace-blockage" class="hidden">
+                    <circle cx="140" cy="385" r="14" fill="#7f1d1d" stroke="#450a0a" stroke-width="2" />
+                    <text x="80" y="430" font-size="12" fill="#7f1d1d" font-weight="bold">Clot</text>
+                    <line x1="120" y1="420" x2="135" y2="395" stroke="#7f1d1d" stroke-width="1" />
+                </g>
+
+                <!-- Blood Cells Container -->
+                <g id="blood-cells"></g>
+
+                <!-- Capillary Front (Glass effect) -->
+                <path d="M20,320 Q200,450 380,320" fill="none" stroke="white" stroke-width="25" opacity="0.1" stroke-linecap="round"/>
+
+                <!-- Labels -->
+                <g id="ventilation-arrow">
+                    <path d="M200,10 L200,50" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
+                    <text x="210" y="30" font-size="12" fill="#64748b">V</text>
+                </g>
+                <path d="M40,300 L90,320" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
+                <text x="20" y="290" font-size="12" fill="#64748b">Q</text>
+            </svg>
+
+            <div class="legend">
+                <div class="legend-item"><div class="dot" style="background:#3b82f6"></div> O₂ (Oxygen)</div>
+                <div class="legend-item"><div class="dot" style="background:#3b0764"></div> Deoxygenated</div>
+                <div class="legend-item"><div class="dot" style="background:#ef4444"></div> Oxygenated</div>
+            </div>
+        </div>
+
+        <div class="info-panel normal" id="alveolar-info">
+            <h2>Normal Match <span class="info-tag">V/Q ≈ 0.8 - 1.0</span></h2>
+            <p>Ventilation and Perfusion are matched. Deoxygenated blood (blue/purple) flows past the alveolus, absorbs oxygen, and leaves as oxygenated blood (red).</p>
+        </div>
+    </main>
+
+    <main id="view-lung" class="hidden lung-layout">
+        <div class="canvas-wrapper lung-visual">
+            <svg viewBox="0 0 400 500">
+                <defs>
+                   <linearGradient id="lungFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#fca5a5" stop-opacity="0.2" />
+                      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.4" />
+                   </linearGradient>
+                   <marker id="arrowLung" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                      <path d="M0,0 L0,10 L10,5 z" fill="#94a3b8" />
+                   </marker>
+                </defs>
+
+                <!-- Lung Outline -->
+                <path d="M100,60 Q180,40 220,100 Q260,180 260,350 Q260,450 100,450 Q40,450 50,250 Q60,100 100,60" fill="url(#lungFill)" stroke="#e11d48" stroke-width="3"/>
+
+                <!-- Gravity -->
+                <g transform="translate(30, 200)">
+                    <line x1="0" y1="-100" x2="0" y2="100" stroke="#94a3b8" stroke-width="4" marker-end="url(#arrowLung)" />
+                    <text x="-25" y="0" transform="rotate(-90)" font-size="14" fill="#64748b" font-weight="bold">GRAVITY</text>
+                </g>
+
+                <!-- Zones -->
+                <!-- Apex -->
+                <g transform="translate(0, 80)">
+                    <line x1="180" y1="0" x2="220" y2="0" stroke="#cbd5e1" stroke-dasharray="4" />
+                    <circle cx="160" cy="0" r="15" fill="white" stroke="#e11d48" stroke-width="2" opacity="0.8" />
+                    <path d="M140,5 L180,5" stroke="#3b0764" stroke-width="1" /> 
+                </g>
+                <!-- Middle -->
+                <g transform="translate(0, 200)">
+                    <line x1="180" y1="0" x2="220" y2="0" stroke="#cbd5e1" stroke-dasharray="4" />
+                    <circle cx="170" cy="0" r="12" fill="white" stroke="#e11d48" stroke-width="2" opacity="0.8" />
+                    <path d="M150,5 L190,5" stroke="#86198f" stroke-width="3" /> 
+                </g>
+                <!-- Base -->
+                <g transform="translate(0, 320)">
+                    <line x1="180" y1="0" x2="220" y2="0" stroke="#cbd5e1" stroke-dasharray="4" />
+                    <circle cx="150" cy="0" r="9" fill="white" stroke="#e11d48" stroke-width="2" opacity="0.8" />
+                    <path d="M130,5 L170,5" stroke="#ef4444" stroke-width="6" /> 
+                </g>
+            </svg>
+            
+            <!-- HTML Overlay for stats to make bars easier to animate -->
+            <div style="position: absolute; top: 30px; left: 220px; right: 10px; bottom: 0; pointer-events: none;">
+                <!-- Apex -->
+                <div style="position: absolute; top: 40px; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px; font-size: 0.75rem; border:1px solid #eee;">
+                    <div style="font-weight: bold;">Apex (Top)</div>
+                    <div style="color:#2563eb; margin-bottom:2px;">High V/Q (>3.0)</div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">V</span><div class="bar-v" style="height:6px; background:#60a5fa; width:30px; border-radius:3px;"></div></div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">Q</span><div class="bar-q" style="height:6px; background:#ef4444; width:10px; border-radius:3px;"></div></div>
+                </div>
+                <!-- Middle -->
+                <div style="position: absolute; top: 160px; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px; font-size: 0.75rem; border:1px solid #eee;">
+                    <div style="font-weight: bold;">Middle</div>
+                    <div style="color:#2563eb; margin-bottom:2px;">Matched (~0.8)</div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">V</span><div class="bar-v" style="height:6px; background:#60a5fa; width:60px; border-radius:3px;"></div></div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">Q</span><div class="bar-q" style="height:6px; background:#ef4444; width:60px; border-radius:3px;"></div></div>
+                </div>
+                <!-- Base -->
+                <div style="position: absolute; top: 280px; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px; font-size: 0.75rem; border:1px solid #eee;">
+                    <div style="font-weight: bold;">Base (Bottom)</div>
+                    <div style="color:#2563eb; margin-bottom:2px;">Low V/Q (< 0.6)</div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">V</span><div class="bar-v" style="height:6px; background:#60a5fa; width:90px; border-radius:3px;"></div></div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="color:#666; width:10px;">Q</span><div class="bar-q" style="height:6px; background:#ef4444; width:140px; border-radius:3px;"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lung-info">
+            <div style="background-color: #eff6ff; padding: 1rem; border-radius: 0.5rem; border: 1px solid #bfdbfe; margin-bottom: 1rem;">
+                <h3 style="color: #1e3a8a; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; margin-bottom: 0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                    West Zones & Gravity
+                </h3>
+                <p style="color: #1e40af; font-size: 0.875rem;">Gravity pulls both lung tissue and blood downwards. It creates regional differences in ventilation and perfusion.</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.5rem;">
+                    <div style="font-size: 0.7rem; font-weight: bold; color: #9ca3af; text-transform: uppercase;">Apex (Top)</div>
+                    <div style="font-weight: bold; color: #1f2937;">High V/Q Ratio (> 3.0)</div>
+                    <p style="font-size: 0.8rem; color: #4b5563; margin-top: 0.25rem;">Poor blood flow against gravity. Alveoli stretched open. <br/><strong>Result: Wasted Ventilation (Dead Space Effect).</strong></p>
+                </div>
+
+                <div style="padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.5rem;">
+                    <div style="font-size: 0.7rem; font-weight: bold; color: #9ca3af; text-transform: uppercase;">Base (Bottom)</div>
+                    <div style="font-weight: bold; color: #1f2937;">Low V/Q Ratio (< 0.6)</div>
+                    <p style="font-size: 0.8rem; color: #4b5563; margin-top: 0.25rem;">Blood pools here (high Q). Alveoli compressed but compliant. Q > V.<br/><strong>Result: Wasted Perfusion (Shunt Effect).</strong></p>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // --- STATE ---
+    const state = {
+        view: 'alveolar',
+        scenario: 'normal',
+        cycle: 0
+    };
+
+    // --- CONFIG DATA ---
+    const scenarios = {
+        normal: {
+            title: "Normal V/Q Match",
+            ratio: "V/Q ≈ 0.8 - 1.0",
+            desc: "Ventilation and Perfusion are matched. Deoxygenated blood (blue/purple) flows past the alveolus, absorbs oxygen, and leaves as oxygenated blood (red).",
+            class: "normal",
+            ventilation: true,
+            perfusion: true
+        },
+        shunt: {
+            title: "Shunt (Low V/Q)",
+            ratio: "V/Q < 1 (Approaches 0)",
+            desc: "Perfusion exists, but Ventilation is blocked (e.g., pneumonia, mucus, edema). Blood passes through the lungs without contacting fresh oxygen.",
+            class: "shunt",
+            ventilation: false,
+            perfusion: true
+        },
+        deadspace: {
+            title: "Dead Space (High V/Q)",
+            ratio: "V/Q > 1 (Approaches ∞)",
+            desc: "Ventilation exists, but Perfusion is blocked (e.g., pulmonary embolism). Air enters the alveolus, but there is no blood flow to exchange gases with.",
+            class: "deadspace",
+            ventilation: true,
+            perfusion: false
+        }
+    };
+
+    // --- DOM ELEMENTS ---
+    const els = {
+        views: {
+            alveolar: document.getElementById('view-alveolar'),
+            lung: document.getElementById('view-lung')
+        },
+        btns: {
+            alveolar: document.getElementById('btn-view-alveolar'),
+            lung: document.getElementById('btn-view-lung'),
+            scenarios: document.querySelectorAll('.btn-scenario')
+        },
+        svg: {
+            breathGroup: document.getElementById('breath-group'),
+            alveolusSac: document.getElementById('alveolus-sac'),
+            airParticles: document.getElementById('air-particles'),
+            bloodCells: document.getElementById('blood-cells'),
+            shuntBlockage: document.getElementById('shunt-blockage'),
+            deadspaceBlockage: document.getElementById('deadspace-blockage'),
+            o2Label: document.getElementById('o2-label'),
+            ventArrow: document.getElementById('ventilation-arrow'),
+            gradMid: document.getElementById('grad-mid'),
+            gradEnd: document.getElementById('grad-end')
+        },
+        info: {
+            panel: document.getElementById('alveolar-info')
+        },
+        bars: document.querySelectorAll('.bar-v') // For lung animation
+    };
+
+    // --- INITIALIZATION ---
+    function init() {
+        createBloodCells();
+        createAirParticles();
+        animate();
+    }
+
+    // --- RENDER HELPERS ---
+    function createBloodCells() {
+        els.svg.bloodCells.innerHTML = '';
+        const count = 7;
+        for(let i=0; i<count; i++) {
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.classList.add('blood-cell-group');
+            // Offset for timing
+            g.dataset.offset = i / count;
+            
+            const cMain = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            cMain.setAttribute("r", "8");
+            cMain.setAttribute("stroke", "white");
+            cMain.setAttribute("stroke-width", "1");
+            
+            const cShine = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            cShine.setAttribute("r", "3");
+            cShine.setAttribute("cx", "-2");
+            cShine.setAttribute("cy", "-2");
+            cShine.setAttribute("fill", "white");
+            cShine.setAttribute("opacity", "0.2");
+
+            g.appendChild(cMain);
+            g.appendChild(cShine);
+            els.svg.bloodCells.appendChild(g);
+        }
+    }
+
+    function createAirParticles() {
+        els.svg.airParticles.innerHTML = '';
+        const count = 12;
+        for(let i=0; i<count; i++) {
+            const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            c.setAttribute("r", "3");
+            c.setAttribute("fill", "#3b82f6");
+            c.dataset.angle = (i/count) * Math.PI * 2;
+            c.classList.add('particle');
+            els.svg.airParticles.appendChild(c);
+        }
+    }
+
+    // --- LOGIC ---
+    function switchView(viewName) {
+        state.view = viewName;
+        
+        // Toggle Container Visibility
+        if(viewName === 'alveolar') {
+            els.views.alveolar.classList.remove('hidden');
+            els.views.lung.classList.add('hidden');
+            els.btns.alveolar.classList.add('active');
+            els.btns.lung.classList.remove('active');
+        } else {
+            els.views.alveolar.classList.add('hidden');
+            els.views.lung.classList.remove('hidden');
+            els.btns.alveolar.classList.remove('active');
+            els.btns.lung.classList.add('active');
+        }
+    }
+
+    function setScenario(scenName) {
+        state.scenario = scenName;
+        const config = scenarios[scenName];
+
+        // Update Buttons
+        els.btns.scenarios.forEach(btn => {
+            btn.classList.remove('active');
+            if(btn.classList.contains(scenName)) btn.classList.add('active');
+        });
+
+        // Update Info Panel
+        els.info.panel.className = `info-panel ${config.class}`;
+        els.info.panel.innerHTML = `
+            <h2>${config.title} <span class="info-tag">${config.ratio}</span></h2>
+            <p>${config.desc}</p>
+        `;
+
+        // Update SVG Elements Visibility
+        if(scenName === 'shunt') {
+            els.svg.shuntBlockage.classList.remove('hidden');
+            els.svg.airParticles.classList.add('hidden');
+            els.svg.o2Label.classList.add('hidden');
+            els.svg.ventArrow.classList.add('hidden');
+        } else {
+            els.svg.shuntBlockage.classList.add('hidden');
+            els.svg.airParticles.classList.remove('hidden');
+            els.svg.o2Label.classList.remove('hidden');
+            els.svg.ventArrow.classList.remove('hidden');
+        }
+
+        if(scenName === 'deadspace') {
+            els.svg.deadspaceBlockage.classList.remove('hidden');
+        } else {
+            els.svg.deadspaceBlockage.classList.add('hidden');
+        }
+
+        // Update Gradients
+        if(scenName === 'normal') {
+            els.svg.gradMid.setAttribute('stop-color', '#dc2626');
+            els.svg.gradEnd.setAttribute('stop-color', '#ef4444');
+        } else {
+            // No oxygenation
+            els.svg.gradMid.setAttribute('stop-color', '#4c1d95');
+            els.svg.gradEnd.setAttribute('stop-color', '#2e1065');
+        }
+    }
+
+    // --- ANIMATION LOOP ---
+    function animate() {
+        const time = performance.now();
+        state.cycle = (time % 3000) / 3000; // 0 to 1
+
+        // 1. Breathe (Expansion)
+        // Expand during inhalation, contract exhalation
+        const expansion = Math.sin(state.cycle * Math.PI) * 10;
+        els.svg.breathGroup.setAttribute("transform", `translate(0, -${expansion})`);
+        els.svg.alveolusSac.setAttribute("r", 80 + expansion);
+
+        // 2. Air Particles (Only if visible)
+        if(state.scenario !== 'shunt' && state.view === 'alveolar') {
+            const particles = els.svg.airParticles.children;
+            for(let i=0; i<particles.length; i++) {
+                const p = particles[i];
+                const angle = parseFloat(p.dataset.angle);
+                // Breathe in/out motion
+                // Inhale: cycle 0 -> 0.5. Exhale: 0.5 -> 1.0
+                // Opacity fades out on exhale
+                const opacity = Math.sin(state.cycle * Math.PI * 2 + angle);
+                
+                // Hide if exhalation phase mostly
+                if(state.cycle > 0.6) {
+                    p.setAttribute('opacity', '0');
+                } else {
+                    p.setAttribute('opacity', '0.7');
+                    const dist = 20 + state.cycle * 40;
+                    const x = 200 + Math.cos(angle) * dist;
+                    const y = 180 + Math.sin(angle) * dist;
+                    p.setAttribute('cx', x);
+                    p.setAttribute('cy', y);
+                }
+            }
+        }
+
+        // 3. Blood Cells
+        if(state.view === 'alveolar') {
+            const cells = els.svg.bloodCells.children;
+            const pathWidth = 360;
+            
+            for(let i=0; i<cells.length; i++) {
+                const group = cells[i];
+                const offset = parseFloat(group.dataset.offset);
+                let progress = ((time / 2000) + offset) % 1;
+
+                // Deadspace logic: blockage
+                if(state.scenario === 'deadspace') {
+                    // Map generic progress to specific positions
+                    // If progress > 0.35 (clot location), reset or hold
+                    // Simple visual hack: clamp progress
+                    let staticPos = offset; 
+                    // Make them move a bit then stop
+                    let move = ((time / 2000) + offset) % 1;
+                    if(move > 0.35) move = 0.35; // Stop at clot
+                    progress = move;
+                }
+
+                // Calculate Position (Bezier approx)
+                // Start (20, 320) -> Dip (200, 380) -> End (380, 320)
+                const x = 20 + progress * pathWidth;
+                const y = 320 + Math.sin(progress * Math.PI) * 60;
+                
+                group.setAttribute('transform', `translate(${x}, ${y})`);
+
+                // Color Logic
+                const circle = group.querySelector('circle');
+                if(state.scenario === 'normal') {
+                    if(progress > 0.5) circle.setAttribute('fill', '#ef4444'); // Red
+                    else if(progress > 0.4) circle.setAttribute('fill', '#86198f'); // Transition
+                    else circle.setAttribute('fill', '#3b0764'); // Blue
+                } else {
+                    circle.setAttribute('fill', '#3b0764'); // Always Blue
+                }
+            }
+        }
+
+        // 4. Lung Bars (Subtle breathing pulse)
+        if(state.view === 'lung') {
+            els.bars.forEach(bar => {
+                bar.style.opacity = 0.5 + (Math.sin(state.cycle * Math.PI) * 0.3);
+            });
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // Start
+    init();
+
+</script>
+</body>
+</html>
